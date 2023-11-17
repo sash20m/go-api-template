@@ -37,13 +37,14 @@ func (app *AppServer) Run(appConfig config.ApiEnvConfig) {
 		}),
 	}
 
+	// can change DB implementation from here
 	storage, err := storage.NewPostgresDB()
 	if err != nil {
 		fmt.Println("here's the error", err.Error())
 		logger.Log.Error(err)
 		panic(err.Error())
 	}
-	// Run our migrations which will update the DB or create it if it doesn't exist
+	// Migrations which will update the DB or create it if it doesn't exist.
 	if err := storage.MigratePostgres("file://migrations"); err != nil {
 		logger.Log.Fatal(err)
 	}
@@ -58,6 +59,7 @@ func (app *AppServer) Run(appConfig config.ApiEnvConfig) {
 	router.Methods("POST").Path("/api/book/add").HandlerFunc(app.AddBookHandler)
 	router.Methods("PATCH").Path("/api/book/update").HandlerFunc(app.UpdateBookHandler)
 	router.Methods("DELETE").Path("/api/book/delete/{id:[0-9]+}").HandlerFunc(app.DeleteBookHandler)
+	// other handlers
 
 	if app.Env != config.PROD_ENV {
 		router.Methods("GET").PathPrefix("/api/docs/").Handler(httpSwagger.Handler(
