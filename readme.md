@@ -64,35 +64,30 @@ yarn add react-native-xportal
 ---
 
 ## Directory Structure
-- cmd --> Contains the app's entry-points 
-  |- server
+- /cmd --> Contains the app's entry-points 
+  |- /server
      |- /docs
-     |- fixtures.json
      |- main.go
      |- Makefile
-     |- runner.conf
-     |- VERSION
-- internal --> folder where we store application code that should not be reused by other applications
-  |- passport
-     |- models
-        |- passport.go
-        |- user.go
-     |- appenv.go
-     |- db_user_test.go
-     |- db_user.go
-     |- handlers_test.go
-     |- handlers.go
-     |- main.go
-     |- routes.go
-- pkg --> folder where we store application code that can be reused by other applications
-  |- health
-     |- check.go
-  |- status
-     |- response.go
-  |- version
-     |- parser.go
-- vendor --> directory where we store the vendored modules
+  |- /another_binary
+- /config --> Contains the config structures that the server uses.
+- internal --> Contains the app's code
+   |- /errors
+   |- /handlers
+   |- /middleware
+   |- /model
+   |- /storage
+   |- server.go
+- /logs --> The folder's files are not in version control. Here you'll have the logs of the apps (the ones you specify to be external)
+- /migrations --> Migrations to set up the database schema on your db.
+- /pkg --> Packages used in /internal
+   |- /httputils
+   |- /logger
+- .air.toml
+- .env --> Not in version control. Need to create your own - see below.
 - .gitignore
+- docker-compose.yml
+- Dockerfile
 - go.mod
 - go.sum
 - LICENSE
@@ -100,6 +95,8 @@ yarn add react-native-xportal
 
 
 ## Description
+
+as flat as possible
 The library works as a react-native substitute for [mx-sdk-dapp](https://github.com/multiversx/mx-sdk-dapp/tree/main), it helps mobile apps connect and interact with the XPortal wallet, including providing the necessary account information (balance, tokens, address etc) and signing transactions, messages or custom requests, thus abstracing all the processes of interacting with users' wallets. On connect, sign transaction or other actions, XPortal app will automatically be opened through deeplinking to complete the intended action. 
 
 The library has 2 main modules: `core` and `UI`. The `core` modules gives you the functions to connect, sign transactions and other so that you can call them anywhere you need. The `UI` modules exports buttons for ease of use, they also use the `core` module under the hood.

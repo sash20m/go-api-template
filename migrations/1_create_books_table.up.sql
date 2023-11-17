@@ -1,4 +1,4 @@
-
+-- This migration is intended to be for Postgres. Make another one for your db if the SQL is not accepted by your db.
 CREATE EXTENSION IF NOT EXISTS citext;
 
 DO $$
