@@ -109,13 +109,18 @@ Also, the responses that the server gives follow a standard, one for 200+ status
 ## Setup
 
 Make sure to first install the binaries that will generate the api docs and hot-reload the app.
-`go install github.com/swaggo/swag/cmd/swag@latest`
+
+```go install github.com/swaggo/swag/cmd/swag@latest```
+
 and
-`go install github.com/cosmtrek/air@latest`
+
+```go install github.com/cosmtrek/air@latest```
 
 Download the libs
-`go mod download`
-`go mod tidy`
+
+```go mod download```
+
+```go mod tidy```
 
 Create a `.env` file in the root folder and use this template:
 ```
