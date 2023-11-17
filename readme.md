@@ -39,11 +39,6 @@
 
 ## Table of Contents
 
-- description
-- setup
-- tour
-- license
-
 - [Features](#Features)
 - [Directory Structure](#Directory-Structure)
 - [Description](#Description)
@@ -64,6 +59,7 @@ yarn add react-native-xportal
 ---
 
 ## Directory Structure
+```
 - /cmd --> Contains the app's entry-points 
   |- /server
      |- /docs
@@ -92,7 +88,7 @@ yarn add react-native-xportal
 - go.sum
 - LICENSE
 - README.md
-
+å```
 
 ## Description
 
