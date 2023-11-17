@@ -48,13 +48,7 @@
 
 ## Features
 
-```bash
-npm install react-native-xportal
-```
-or 
-```bash
-yarn add react-native-xportal
-```
+- 
 
 ---
 
@@ -88,10 +82,11 @@ yarn add react-native-xportal
 - go.sum
 - LICENSE
 - README.md
-å```
+```
 
 ## Description
 
+<b>The Why</b>
 as flat as possible
 The library works as a react-native substitute for [mx-sdk-dapp](https://github.com/multiversx/mx-sdk-dapp/tree/main), it helps mobile apps connect and interact with the XPortal wallet, including providing the necessary account information (balance, tokens, address etc) and signing transactions, messages or custom requests, thus abstracing all the processes of interacting with users' wallets. On connect, sign transaction or other actions, XPortal app will automatically be opened through deeplinking to complete the intended action. 
 
@@ -99,53 +94,10 @@ The library has 2 main modules: `core` and `UI`. The `core` modules gives you th
 
 ***Note: This library has all the basic functionalities for interacting with the XPortal Wallet. New functionalities can be added - if you want to contribute, please see the [Contributing](#contributing) section.***
 
-## Usage
-The library needs to be initalized first in order to work, see example below.
-```typescript
-import { XPortal } from 'react-native-xportal';
+## Setup
 
-const callbacks = {
-      onClientLogin: async () => {
-            console.log('on login');
-      },
-      onClientLogout: async () => {
-            console.log('on logout');
-      },
-      onClientEvent: async (event: any) => {
-            console.log('event -> ', event);
-      },
-};
+## Template Tour
 
-try {
-      await XPortal.initialize({
-            chainId: 'd',
-            projectId: '<wallet connect project ID>',
-            metadata: {
-                  description: 'Connect with X',
-                  url: '<your website>',
-                  icons: ['<https://img.com/linkToIcon.png>'],
-                  name: '<name>',
-            },
-            callbacks,
-      });
-} catch (error) {
-      console.log(error);
-}
-```
-You need to  have a WalletConnect project ID. To get one see: https://cloud.walletconnect.com/app. Also, make sure to have valid data in your metadata key, otherwise the XPortal wallet will show a "Unexpected Error" when redirecting to it for login.
-
-### Core
-#### Login
-```typescript
-import { XPortal } from 'react-native-xportal';
-
-try {
-      await XPortal.login();
-} catch (error: any) {
-      throw new Error(error.message);
-}
-```
-This will connect your app to user's XPortal app and his account.
 
 ## License
 
