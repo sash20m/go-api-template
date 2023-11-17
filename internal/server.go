@@ -53,7 +53,6 @@ func (app *AppServer) Run(appConfig config.ApiEnvConfig) {
 	router := mux.NewRouter().StrictSlash(true)
 	router.MethodNotAllowedHandler = http.HandlerFunc(app.NotAllowedHandler)
 	router.NotFoundHandler = http.HandlerFunc(app.NotFoundHandler)
-
 	router.Methods("GET").Path("/api/books").HandlerFunc(app.GetBooksHandler)
 	router.Methods("GET").Path("/api/book/{id:[0-9]+}").HandlerFunc(app.GetBookHandler)
 	router.Methods("POST").Path("/api/book/add").HandlerFunc(app.AddBookHandler)
