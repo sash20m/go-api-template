@@ -1,0 +1,149 @@
+definitions:
+  model.GetBookResponse:
+    properties:
+      author:
+        type: string
+      coverUrl:
+        type: string
+      id:
+        type: integer
+      postUrl:
+        type: string
+      title:
+        type: string
+    type: object
+  model.IDResponse:
+    properties:
+      id:
+        type: integer
+    type: object
+info:
+  contact: {}
+  description: Api Endpoints for Go Server
+  title: Go Rest Api
+paths:
+  /api/book/{id}:
+    get:
+      parameters:
+      - description: Book ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.GetBookResponse'
+      summary: Get a specific book
+      tags:
+      - Books
+  /api/book/add:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Book title
+        in: body
+        name: title
+        required: true
+        schema:
+          type: string
+      - description: Book author
+        in: body
+        name: author
+        required: true
+        schema:
+          type: string
+      - description: Book coverUrl
+        in: body
+        name: coverUrl
+        required: true
+        schema:
+          type: string
+      - description: Book post url
+        in: body
+        name: postUrl
+        required: true
+        schema:
+          type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.IDResponse'
+      summary: Add a specific book
+      tags:
+      - Books
+  /api/book/delete/{id}:
+    delete:
+      parameters:
+      - description: Book ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.GetBookResponse'
+      summary: Delete a specific book
+      tags:
+      - Books
+  /api/book/update:
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Book title
+        in: body
+        name: title
+        schema:
+          type: string
+      - description: Book author
+        in: body
+        name: author
+        schema:
+          type: string
+      - description: Book coverUrl
+        in: body
+        name: coverUrl
+        schema:
+          type: string
+      - description: Book post url
+        in: body
+        name: postUrl
+        schema:
+          type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.IDResponse'
+      summary: Update a specific book
+      tags:
+      - Books
+  /api/books:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.GetBookResponse'
+            type: array
+      summary: Get all books
+      tags:
+      - Books
+swagger: "2.0"
