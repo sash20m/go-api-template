@@ -1,9 +1,3 @@
-export ENV=DEV
-export VERSION=0.0.1
-export PORT=3001
-
-
-
 // # errors 
 // # maybe switch to sqlx?
 // # contexts and tracing ?
@@ -38,3 +32,129 @@ export PORT=3001
 
 // go install github.com/swaggo/swag/cmd/swag@latest
 // go install github.com/cosmtrek/air@latest
+
+
+# Golang Rest API Template
+> Golang Rest Api Template with clear, scalable structure that can sustain large APIs.
+
+## Table of Contents
+
+- description
+- setup
+- tour
+- license
+
+- [Features](#Features)
+- [Directory Structure](#Directory-Structure)
+- [Description](#Description)
+- [Setup](#Setup)
+- [Template Tour](#Tempalte-Tour)
+- [License](#license)
+
+## Features
+
+```bash
+npm install react-native-xportal
+```
+or 
+```bash
+yarn add react-native-xportal
+```
+
+---
+
+## Directory Structure
+- cmd --> Contains the app's entry-points 
+  |- server
+     |- /docs
+     |- fixtures.json
+     |- main.go
+     |- Makefile
+     |- runner.conf
+     |- VERSION
+- internal --> folder where we store application code that should not be reused by other applications
+  |- passport
+     |- models
+        |- passport.go
+        |- user.go
+     |- appenv.go
+     |- db_user_test.go
+     |- db_user.go
+     |- handlers_test.go
+     |- handlers.go
+     |- main.go
+     |- routes.go
+- pkg --> folder where we store application code that can be reused by other applications
+  |- health
+     |- check.go
+  |- status
+     |- response.go
+  |- version
+     |- parser.go
+- vendor --> directory where we store the vendored modules
+- .gitignore
+- go.mod
+- go.sum
+- LICENSE
+- README.md
+
+
+## Description
+The library works as a react-native substitute for [mx-sdk-dapp](https://github.com/multiversx/mx-sdk-dapp/tree/main), it helps mobile apps connect and interact with the XPortal wallet, including providing the necessary account information (balance, tokens, address etc) and signing transactions, messages or custom requests, thus abstracing all the processes of interacting with users' wallets. On connect, sign transaction or other actions, XPortal app will automatically be opened through deeplinking to complete the intended action. 
+
+The library has 2 main modules: `core` and `UI`. The `core` modules gives you the functions to connect, sign transactions and other so that you can call them anywhere you need. The `UI` modules exports buttons for ease of use, they also use the `core` module under the hood.
+
+***Note: This library has all the basic functionalities for interacting with the XPortal Wallet. New functionalities can be added - if you want to contribute, please see the [Contributing](#contributing) section.***
+
+## Usage
+The library needs to be initalized first in order to work, see example below.
+```typescript
+import { XPortal } from 'react-native-xportal';
+
+const callbacks = {
+      onClientLogin: async () => {
+            console.log('on login');
+      },
+      onClientLogout: async () => {
+            console.log('on logout');
+      },
+      onClientEvent: async (event: any) => {
+            console.log('event -> ', event);
+      },
+};
+
+try {
+      await XPortal.initialize({
+            chainId: 'd',
+            projectId: '<wallet connect project ID>',
+            metadata: {
+                  description: 'Connect with X',
+                  url: '<your website>',
+                  icons: ['<https://img.com/linkToIcon.png>'],
+                  name: '<name>',
+            },
+            callbacks,
+      });
+} catch (error) {
+      console.log(error);
+}
+```
+You need to  have a WalletConnect project ID. To get one see: https://cloud.walletconnect.com/app. Also, make sure to have valid data in your metadata key, otherwise the XPortal wallet will show a "Unexpected Error" when redirecting to it for login.
+
+### Core
+#### Login
+```typescript
+import { XPortal } from 'react-native-xportal';
+
+try {
+      await XPortal.login();
+} catch (error: any) {
+      throw new Error(error.message);
+}
+```
+This will connect your app to user's XPortal app and his account.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
+
