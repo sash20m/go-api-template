@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/rs/cors"
 	_ "github.com/sash20m/go-api-template/cmd/server/docs"
 	"github.com/sash20m/go-api-template/config"
 	"github.com/sash20m/go-api-template/internal/handlers"
@@ -70,9 +71,7 @@ func (app *AppServer) Run(appConfig config.ApiEnvConfig) {
 
 	// Security Middlewares
 	secureMiddleware := secure.New(secure.Options{
-		IsDevelopment: app.Env == "DEV",
-		// CORS
-		AllowedHosts:       []string{},
+		IsDevelopment:      app.Env == "DEV",
 		ContentTypeNosniff: true,
 		SSLRedirect:        true,
 		// If the app is behind a proxy
@@ -85,7 +84,16 @@ func (app *AppServer) Run(appConfig config.ApiEnvConfig) {
 	n.Use(negroni.NewRecovery())
 	n.Use(negroni.HandlerFunc(secureMiddleware.HandlerFuncWithNext))
 	n.Use(negroni.HandlerFunc(middlewares.TrackRequestMiddleware))
-	n.UseHandler(router)
+	corsMiddleware := cors.New(cors.Options{
+		AllowedOrigins:   []string{"*"}, // Allows all origins
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+		AllowCredentials: true,
+		MaxAge:           86400,
+	})
+	// router with cors middleware
+	wrappedRouter := corsMiddleware.Handler(router)
+	n.UseHandler(wrappedRouter)
 
 	startupMessage := "Starting API server (v" + app.Version + ")"
 	startupMessage = startupMessage + " on port " + app.Port
