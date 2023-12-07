@@ -40,7 +40,6 @@ func (app *AppServer) Run(appConfig config.ApiEnvConfig) {
 	// can change DB implementation from here
 	storage, err := storage.NewPostgresDB()
 	if err != nil {
-		fmt.Println("here's the error", err.Error())
 		logger.Log.Error(err)
 		panic(err.Error())
 	}
