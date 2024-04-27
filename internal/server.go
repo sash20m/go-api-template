@@ -102,7 +102,7 @@ func (app *AppServer) Run(appConfig config.ApiEnvConfig) {
 
 	addr := ":" + app.Port
 	if app.Env == "DEV" {
-		addr = "0.0.0.0:" + app.Port
+		addr = "localhost:" + app.Port
 	}
 
 	server := http.Server{
