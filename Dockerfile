@@ -1,4 +1,4 @@
-FROM golang:1.21 AS build
+FROM golang:latest AS build
 
 WORKDIR /app
 
@@ -7,27 +7,25 @@ COPY go.sum ./
 
 RUN go mod download
 
-COPY ./cmd/server/main.go ./cmd/server/main.go
-COPY ./cmd/server/docs/ ./cmd/server/docs/
-COPY ./pkg/ ./pkg/
+COPY ./cmd/api/main.go ./cmd/api/main.go
+COPY ./cmd/migration/main.go ./cmd/migration/main.go
 COPY ./internal/ ./internal/
 COPY ./config/ ./config/
+COPY ./scripts/ ./scripts/
+COPY .env .env
 
-RUN CGO_ENABLED=0 go build -o ./server ./cmd/server/main.go
+RUN CGO_ENABLED=0 go build -o ./api ./cmd/api/main.go
 
 # Stage 2
 FROM alpine:latest
 
-RUN apk --no-cache add ca-certificates
+RUN apk --no-cache add ca-certificates curl vim nano
 
 WORKDIR /root/
 
-COPY --from=0 /app/server ./
-COPY ./migrations/ ./migrations/
-COPY .env.prod .env.prod
+COPY --from=build /app/api ./
 COPY .env .env
-COPY ./logs/ ./logs/
 
 EXPOSE 8080
 
-CMD ["./server"]
+CMD ["./api"]

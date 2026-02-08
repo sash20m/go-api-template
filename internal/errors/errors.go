@@ -1,14 +1,19 @@
-package errors
+package errs
 
-// Used for custom errors
-type Err struct {
-	Message string `json:"message"`
-	Data    any    `json:"data,omitempty"`
+type HTTPError struct {
+	ErrorCode  ErrorCode `json:"errorCode,omitempty"`
+	StatusCode int       `json:"statusCode"`
+	Message    string    `json:"message"`
 }
 
-func (err Err) Error() string {
-	return err.Message
+func (e *HTTPError) Error() string {
+	return e.Message
 }
 
-// Sentinel errors
-const ErrResourceUnavailable = "This resource is unavailable"
+func New(errorCode ErrorCode, statusCode int, msg string) error {
+	return &HTTPError{
+		ErrorCode:  errorCode,
+		StatusCode: statusCode,
+		Message:    msg,
+	}
+}

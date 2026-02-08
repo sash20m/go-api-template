@@ -1,0 +1,12 @@
+name: go-api-template
+
+services:
+  app:
+    container_name: my-app
+    image: my-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    restart: unless-stopped

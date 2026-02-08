@@ -5,11 +5,10 @@ watch_dir = "./"
 
 exclude_dir = ["assets", "tmp", "vendor"]
 
-
 [build]
   args_bin = []
-  bin = "cmd/server/tmp/main"
-  cmd = "cd cmd/server && go build -o ./tmp/main ."
+  bin = "cmd/api/tmp/main"
+  cmd = "cd cmd/api && go build -o ./tmp/main ."
   delay = 0
   exclude_dir = ["assets", "tmp", "vendor", "testdata"]
   exclude_file = []

@@ -1,0 +1,20 @@
+version: "2"
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - modernize
+    - lll
+    - godot
+    - forbidigo
+    - errname
+    - err113
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+

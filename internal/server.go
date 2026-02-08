@@ -1,142 +1,180 @@
-package api
+package internal
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"go-api-template/config"
+	"go-api-template/internal/libs/database"
+	"go-api-template/internal/libs/queue"
+	"go-api-template/internal/libs/renderer"
+	"go-api-template/internal/service"
+	httpTransport "go-api-template/internal/transport/http"
+	queueTransport "go-api-template/internal/transport/queue"
 	"net/http"
 	"time"
 
-	"github.com/gorilla/mux"
-	"github.com/rs/cors"
-	_ "github.com/sash20m/go-api-template/cmd/server/docs"
-	"github.com/sash20m/go-api-template/config"
-	"github.com/sash20m/go-api-template/internal/handlers"
-	"github.com/sash20m/go-api-template/internal/middlewares"
-	"github.com/sash20m/go-api-template/internal/storage"
-	"github.com/sash20m/go-api-template/pkg/httputils"
-	"github.com/sash20m/go-api-template/pkg/logger"
-	httpSwagger "github.com/swaggo/http-swagger/v2"
-	"github.com/unrolled/render"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
+	"github.com/sirupsen/logrus"
 	"github.com/unrolled/secure"
-
-	"github.com/urfave/negroni"
 )
 
-type AppServer struct {
-	Env     string
-	Port    string
-	Version string
-	handlers.Handlers
+type Server struct {
+	HTTP             *httpTransport.HTTPTransport
+	Queue            *queueTransport.QueueTransport
+	ResponseRenderer *renderer.ResponseRenderer
+
+	Services *service.Services
+
+	// Used for migrations and connection closing on shutdown
+	PostgresDB *database.PostgresDB
+	RabbitMQ   *queue.RabbitMQ
 }
 
-func (app *AppServer) Run(appConfig config.ApiEnvConfig) {
-	app.Env = appConfig.Env
-	app.Port = appConfig.Port
-	app.Version = appConfig.Version
-	app.Sender = &httputils.Sender{
-		Render: render.New(render.Options{
-			IndentJSON: true,
-		}),
-	}
-
-	// can change DB implementation from here
-	storage, err := storage.NewPostgresDB()
+func NewServer() *Server {
+	postgresDB, err := database.NewPostgresDB()
 	if err != nil {
-		logger.Log.Error(err)
-		panic(err.Error())
-	}
-	// Migrations which will update the DB or create it if it doesn't exist.
-	if err := storage.MigratePostgres("file://migrations"); err != nil {
-		logger.Log.Fatal(err)
-	}
-	app.Storage = storage
-
-	router := mux.NewRouter().StrictSlash(true)
-	router.MethodNotAllowedHandler = http.HandlerFunc(app.NotAllowedHandler)
-	router.NotFoundHandler = http.HandlerFunc(app.NotFoundHandler)
-	router.Methods("GET").Path("/api/books").HandlerFunc(app.GetBooksHandler)
-	router.Methods("GET").Path("/api/book/{id:[0-9]+}").HandlerFunc(app.GetBookHandler)
-	router.Methods("POST").Path("/api/book/add").HandlerFunc(app.AddBookHandler)
-	router.Methods("PATCH").Path("/api/book/update").HandlerFunc(app.UpdateBookHandler)
-	router.Methods("DELETE").Path("/api/book/delete/{id:[0-9]+}").HandlerFunc(app.DeleteBookHandler)
-	// other handlers
-
-	if app.Env != config.PROD_ENV {
-		router.Methods("GET").PathPrefix("/api/docs/").Handler(httpSwagger.Handler(
-			httpSwagger.URL(fmt.Sprint("http://localhost:", app.Port, "/api/docs/doc.json")),
-			httpSwagger.DeepLinking(true),
-			httpSwagger.DocExpansion("none"),
-			httpSwagger.DomID("swagger-ui"),
-		))
+		panic(err)
 	}
 
-	// Security Middlewares
+	var rabbit *queue.RabbitMQ
+	var publisher queue.Publisher = queue.NoopPublisher{}
+	if config.CONFIG.RabbitMQEnabled {
+		rabbit = queue.NewRabbitMQ(config.CONFIG.RabbitMQURL, queue.RabbitMQOptions{
+			Prefetch: config.CONFIG.RabbitMQPrefetch,
+		})
+		if err := rabbit.Connect(); err != nil {
+			panic(err)
+		}
+		if err := rabbit.EnsureTopology(queue.EventsExchangeName, queue.OwnedQueues()); err != nil {
+			panic(err)
+		}
+		publisher = rabbit
+	}
+
+	services := service.NewServices(postgresDB.Database, publisher)
+
+	responseRenderer := renderer.NewResponseRenderer()
+
+	httpTransport := httpTransport.NewHTTPTransport(services, responseRenderer)
+	queueTransport := queueTransport.NewQueueTransport(services, rabbit)
+
+	return &Server{
+		Services:         services,
+		HTTP:             httpTransport,
+		Queue:            queueTransport,
+		ResponseRenderer: responseRenderer,
+		PostgresDB:       postgresDB,
+		RabbitMQ:         rabbit,
+	}
+}
+
+func (s *Server) Run(ctx context.Context) error {
+	r := chi.NewRouter()
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
+	r.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   config.CONFIG.AllowedOrigins,
+		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: false,
+		MaxAge:           300,
+	}))
 	secureMiddleware := secure.New(secure.Options{
-		IsDevelopment:      app.Env == "DEV",
+		IsDevelopment:      config.CONFIG.Env == config.DEV_ENV,
 		ContentTypeNosniff: true,
-		SSLRedirect:        true,
-		// If the app is behind a proxy
+		// SSLRedirect:        config.CONFIG.Env == config.PROD_ENV,
+		// When the API is behind nginx
 		// SSLProxyHeaders: map[string]string{"X-Forwarded-Proto": "https"},
 	})
+	r.Use(secureMiddleware.Handler)
 
-	// Usual Middlewares
-	n := negroni.New()
-	n.Use(negroni.NewLogger())
-	n.Use(negroni.NewRecovery())
-	n.Use(negroni.HandlerFunc(secureMiddleware.HandlerFuncWithNext))
-	n.Use(negroni.HandlerFunc(middlewares.TrackRequestMiddleware))
-	corsMiddleware := cors.New(cors.Options{
-		AllowedOrigins:   []string{"*"}, // Allows all origins
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
-		AllowCredentials: true,
-		MaxAge:           86400,
-	})
-	// router with cors middleware
-	wrappedRouter := corsMiddleware.Handler(router)
-	n.UseHandler(wrappedRouter)
+	r.NotFound(s.NotFoundHandler)
+	r.MethodNotAllowed(s.NotAllowedHandler)
 
-	startupMessage := "Starting API server (v" + app.Version + ")"
-	startupMessage = startupMessage + " on port " + app.Port
-	startupMessage = startupMessage + " in " + app.Env + " mode."
-	logger.Log.Info(startupMessage)
-
-	addr := ":" + app.Port
-	if app.Env == "DEV" {
-		addr = "localhost:" + app.Port
-	}
+	s.RegisterRoutes(r)
 
 	server := http.Server{
-		Addr:         addr,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 90 * time.Second,
-		IdleTimeout:  120 * time.Second,
-		Handler:      n,
+		Addr:         ":" + config.CONFIG.Port,
+		ReadTimeout:  60 * time.Second,
+		WriteTimeout: 900 * time.Second,
+		IdleTimeout:  1200 * time.Second,
+		Handler:      r,
 	}
 
-	logger.Log.Info("Listening...")
+	errCh := make(chan error, 1)
 
-	server.ListenAndServe()
+	// Start HTTP server
+	go func() {
+		startupMessage := "Starting HTTP server (v" + config.CONFIG.Version + ")"
+		startupMessage = startupMessage + " on port " + config.CONFIG.Port
+		startupMessage = startupMessage + " in " + string(config.CONFIG.Env) + " mode."
+		logrus.Info(startupMessage)
+
+		logrus.Info("HTTP Server Listening...")
+		errCh <- server.ListenAndServe()
+
+	}()
+
+	// Start RabbitMQ listener
+	if config.CONFIG.RabbitMQEnabled && s.Queue != nil {
+		go func() {
+			if err := s.Queue.StartConsumers(ctx); err != nil && !errors.Is(err, context.Canceled) {
+				errCh <- err
+			}
+		}()
+	}
+
+	select {
+	case <-ctx.Done():
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		server.Shutdown(shutdownCtx)
+
+		s.OnShutdown()
+		return nil
+
+	case err := <-errCh:
+		if errors.Is(err, http.ErrServerClosed) {
+			s.OnShutdown()
+			return nil
+		}
+		logrus.WithError(err).Error("Server stopped with error")
+		s.OnShutdown()
+		return err
+	}
+}
+
+func (s *Server) RegisterRoutes(r chi.Router) {
+	// All top level routes should be registered here.
+	r.Route("/api", func(r chi.Router) {
+		r.Route("/users", s.HTTP.Users.RegisterRoutes)
+	})
 }
 
 // OnShutdown is called when the server has a panic.
-func (app *AppServer) OnShutdown() {
-	// Do cleanup or logging
-	logger.OutputLog.Error("Executed OnShutdown")
-}
+// It is used to cleanup the server resources.
+func (s *Server) OnShutdown() {
+	s.PostgresDB.Close()
+	logrus.Info("PostgresDB closed")
 
-// Special server handlers, outside of specific routes we have
-func (app *AppServer) NotFoundHandler(w http.ResponseWriter, r *http.Request) {
-	err := app.Sender.JSON(w, http.StatusNotFound, fmt.Sprint("Not Found ", r.URL))
-	if err != nil {
-		panic(err)
+	if s.RabbitMQ != nil {
+		_ = s.RabbitMQ.Close()
+		logrus.Info("RabbitMQ closed")
 	}
+
+	logrus.WithError(fmt.Errorf("Executed OnShutdown")).Error("Executed OnShutdown")
 }
 
-func (app *AppServer) NotAllowedHandler(w http.ResponseWriter, r *http.Request) {
-	err := app.Sender.JSON(w, http.StatusMethodNotAllowed, fmt.Sprint(r.Method, " method not allowed"))
-	if err != nil {
-		panic(err)
-	}
+func (s *Server) NotFoundHandler(w http.ResponseWriter, r *http.Request) {
+	s.ResponseRenderer.JSON(w, http.StatusNotFound, fmt.Sprint("Not Found ", r.URL))
 }
 
-// cSpell:ignore negroni httputils Nosniff urfave sirupsen logrus
+func (s *Server) NotAllowedHandler(w http.ResponseWriter, r *http.Request) {
+	s.ResponseRenderer.JSON(w, http.StatusMethodNotAllowed, fmt.Sprint(r.Method, " method not allowed"))
+
+}

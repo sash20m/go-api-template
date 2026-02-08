@@ -1,94 +1,132 @@
-# Golang Rest API Template
+# Golang API Template
 
-> Golang Rest API Template with clear, scalable structure that can sustain large APIs.
+> Golang API Template with a clear, scalable structure that can sustain large APIs.
 
 ## Table of Contents
 
-- [Features](#Features)
-- [Directory Structure](#Directory-Structure)
-- [Description](#Description)
-- [Setup](#Setup)
-- [Template Tour](#Template-Tour)
+- [Features](#features)
+- [Directory Structure](#directory-structure)
+- [Description](#description)
+- [Setup](#setup)
+- [Template Tour](#template-tour)
 - [License](#license)
 
 ## Features
 
-- Standard responses for success and fail requests
-- Swagger API documentation
-- Sqlx DB with Postgres - but can be changed as needed.
-- Standard for custom errors
-- Logger for console and external file.
-- Migrations setup
-- Hot Reload
-- Docker setup
-- Intuitive, clean and scalabe structure
+- Standardized JSON responses (success + error envelopes)
+- `chi` router with clean route composition and middleware chaining
+- Postgres via `sqlx` (repository pattern) + migrations via `golang-migrate`
+- Optional RabbitMQ transport (publish + consume) with a simple router for handlers
+- Environment-driven configuration via `godotenv` (with `-envfilename` flag support)
+- Security headers via `unrolled/secure` + CORS via `go-chi/cors`
+- Structured logging via `logrus`
+- Hot reload via Air (`.air.toml`)
+- Docker setup for Postgres and RabbitMQ + optional app container
+- Linting and formatting configuration via `golangci-lint` (`.golangci.yml`)
 
 ---
 
 ## Directory Structure
 
 ```
-- /cmd --> Contains the app's entry-points
-  |- /server
-     |- /docs
-     |- main.go
-     |- Makefile
-  |- /another_binary
-- /config --> Contains the config structures that the server uses.
-- internal --> Contains the app's code
-   |- /errors
-   |- /handlers
-   |- /middleware
-   |- /model
-   |- /storage
-   |- server.go
-- /logs --> The folder's files are not in version control. Here you'll have the logs of the apps (the ones you specify to be external)
-- /migrations --> Migrations to set up the database schema in your db.
-- /pkg --> Packages used in /internal
-   |- /httputils
-   |- /logger
-- .air.toml
-- .env --> Not in version control. Need to create your own - see below.
-- .gitignore
-- docker-compose.yml
-- Dockerfile
-- go.mod
-- go.sum
-- LICENSE
-- README.md
+/cmd                         # App entrypoints (binaries)
+  /api                       # HTTP API server
+    main.go
+  /migration                 # Migration runner
+    main.go
+
+/config                      # Config schema + env loading
+  config.go
+
+/internal                    # Application code
+  server.go                  # Server wiring (HTTP + Queue) and graceful shutdown
+
+  /transport                 # Transport layer (HTTP, queue, etc.) through which external systems communicate with the API.
+    /http
+      http_transport.go      # Transport constructor (wires handlers)
+      /middlewares           # HTTP middlewares (auth + chaining helper)
+      /users                 # User HTTP handlers + routes + request mapping
+    /queue
+      queue.go               # Consumer startup and routing keys -> handlers
+      router.go              # Router: routingKey -> handler
+      queue_handlers.go      # Message handlers (example: users.created)
+
+  /service                   # Business logic layer (use-cases)
+    users.go
+    types.go                 # Service wiring + request structs
+
+  /repositories              # Data access layer (sqlx)
+    user_repository.go
+
+  /model                     # Domain + DB models (sqlx tags)
+    users.go
+    model_kit.go
+
+  /errors                    # Custom error type + error codes
+    errors.go
+    error_codes.go
+    user_email_exists.go
+
+  /libs                      # Shared infra helpers
+    /crypto                  # Password hashing helpers
+    /database                # Postgres connection + migrations runner
+    /queue                   # RabbitMQ implementation + types + topology
+    /renderer                # Response renderer (JSON envelopes)
+    /utils                   # Generic helpers (JSON body parsing, parsing utils)
+
+  /migrations                # SQL migrations (golang-migrate format)
+    1_create_tables.up.sql
+
+/scripts                      # Helper scripts (migrations, DB init)
+  run-migrations-env.sh
+  run-migrations-env-prod.sh
+  database-init.sh
+
+.air.toml                     # Air hot reload config
+.golangci.yml                 # golangci-lint configuration
+docker-compose.yml            # Postgres + RabbitMQ for local dev
+docker-compose.app.yml        # Build/run app container
+Dockerfile
+.env.example                  # Env template
+go.mod
+go.sum
+LICENSE
+README.md
 ```
 
 ## Description
 
 **The Why**
 
-I have spent a while looking for Go Api templates to automate my workflow but I had some trouble with the ones I've found. Some of them were way too specific, sometimes allowing just one set of handlers or one model in db to exist by default, in which case I had to rewrite and restructure it to make it open for extension, to add more handlers, DBs etc. Others were way to complex, with a deep hierarchical structure that didn't make sense (to me at least), half of which I would delete afterwards. So I wanted something that is as flat as possible but still having some structure that is easily extendable when needed, and also has the basic functionality set up so that I only need to add to it. This template is my attempt at achieving that.
+This template aims to stay flat and easy to extend while still being explicit about boundaries. It uses a layered approach:
 
-To keep it simple, the template creates a CRUD of books which then can be deleted for your specific handlers, but they show the way the api works generally. The server uses `gorilla/mux` as a router, `urfave/negroni` as a base middleware, `sirupsen/logrus` as a logger and `unrolled/render` as the functionality to format the responses in any way you want before automatically sending them. The API also uses `unrolled/secure` to improve the security. For database management `jmoiron/sqlx` is used to improve the ease of use.
+- **Transport layer**: HTTP handlers and queue consumers. These should be thin; parse input, call services, render output.
+- **Service layer**: business logic and orchestration (including publishing events).
+- **Repository layer**: data access with `sqlx` and raw SQL.
 
-The app uses Air as a hot-reloader and Docker if you need it. You can start it in both ways (see [Setup](#setup)).
-For environment variables `joho/godotenv` has been used instead of a `.yaml` file for security considerations. Again, everything is extendable, so you can add a `.yaml` file if you need more hierarchical structure or your environment variables don't need to be secure.
-If you decide to not use Docker, in dev mode you use the variables from .env, and in production you add them in the terminal or in `~/.bash_profile`/`/etc/environment`. If you do decide to use Docker, keep the variables in .env in development mode, and add another .env on your production server with the prod variables. The .env file is not version controlled so there will not be conflicts. I chose to go with this approach from hundreds because I tried to hit the middle - simple and relatively secure, in a way that _most_ people will use this template. If the api becomes large and you have specific needs for your case, you can add the variables in prod in command-line, in docker volumes, in a secret manager, in your kubernetes/docker swarm or any other way you want/need. But for most people and most cases, this approach will be more than enough.
+The goal is to make adding new features predictable: every new domain (users, auth, orders, products, etc.) gets its own transport + service + repository slice without forcing a deep folder tree or overly clever abstractions.
 
-I made sure you can add to it and modify without any pain, so for example, you can add one more db without modifying anything from the existing code, and also you can change the current db (Postgres) with any other also by not modifying anything besides creating the connect function for your new db. Same goes for response senders or for handlers - you can add a new file in /handlers and add your users, auth, products handlers etc. so that the structures remains flat, with maintaining clarity of what is where.
+**Core decisions**
 
-Also, the responses that the server gives follow a standard, one for 200+ status codes, and another one for the errors: 400+, 500+ status codes. This is implemented by the sender that you'll use to respond to requests.
+- **Router**: `github.com/go-chi/chi/v5` for fast routing + composable middleware.
+- **Responses**: a single renderer (`internal/libs/renderer`) standardizes JSON envelopes:
+  - \(2xx\): `{ "data": <any>, "timestamp": "<utc>" }`
+  - \(4xx\)/\(5xx\): `{ "errorCode": <int>, "statusCode": <int>, "message": "<string>", "timestamp": "<utc>" }`
+- **Errors**: application errors are represented by `internal/errors.HTTPError`. If you return one of those, the renderer will pick it up and respond with its `StatusCode` and `ErrorCode` consistently.
+- **Config**: one config schema in `config/config.go`, loaded from env. Once loaded, config is available globally via `config.CONFIG` (simple and practical; easy to refactor into dependency injection if you prefer).
+- **Queue**: RabbitMQ is optional. When enabled, the service publishes events and the consumer transport starts consumers on startup. When disabled, publishing becomes a no-op via `NoopPublisher`.
 
 ## Setup
 
-Make sure to first install the binaries that will generate the api docs and hot-reload the app.
+Go version: see `go.mod` (Go 1.25+).
 
-```
-go install github.com/swaggo/swag/cmd/swag@latest
-```
-
-and
+Install Air (hot reload):
 
 ```
 go install github.com/cosmtrek/air@latest
 ```
 
-Download the libs
+Download dependencies:
 
 ```
 go mod download
@@ -98,49 +136,211 @@ go mod download
 go mod tidy
 ```
 
-Create an `.env` file in the root folder and use this template:
+Create an `.env` file in the root folder and start from `.env.example`.
+
+**Minimum variables to run locally**
+
+These are the ones the template actually uses to boot the API:
+
+- `ENV` (ex: `DEV`)
+- `PORT` (ex: `8080`)
+- `VERSION` (ex: `0.0.1`)
+- `ALLOWED_ORIGINS` (ex: `*`)
+- `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`
+- `RABBITMQ_ENABLED` (ex: `false` if you don't want RabbitMQ)
+- `RABBITMQ_URL` (required only when `RABBITMQ_ENABLED=true`)
+- `RABBITMQ_PREFETCH` (optional, defaults to `20`)
+
+**Default networking (Docker-first)**
+
+By default, `.env` is configured to talk to the Docker Compose services:
+
+- `DB_HOST=go-api-template-db`
+- `RABBITMQ_URL=amqp://guest:guest@go-api-template-rabbitmq:5672/`
+
+**Run Postgres + RabbitMQ with Docker**
 
 ```
-# DEV, STAGE, PROD
-ENV=DEV
-PORT=8080
-VERSION=0.0.1
-
-DB_HOST=localhost  #when running the app without docker
-# DB_HOST=postgres # when running the app in docker
-DB_USER=postgres
-DB_NAME=postgres
-DB_PASSWORD=postgres
-DB_PORT=5432
+docker compose up
 ```
 
-If you start the app locally without docker make sure your Postgres DB is up.
-Write `air` in terminal and the app will be up and running listening on whatever port you set in .env.
+That will start:
 
-Don't forget to rename the module and all the imports in the code from my github link to yours.
+- Postgres on `5432` (service name/hostname `go-api-template-db`)
+- RabbitMQ on `5672` and the management UI on `15672` (hostname `go-api-template-rabbitmq`)
+
+If you want to run the API on your host machine instead of in Docker, switch the `.env` hosts to `localhost` accordingly.
+
+**Run migrations**
+
+```
+go run cmd/migration/main.go -envfilename=.env
+```
+
+Or via the helper script:
+
+```
+./scripts/run-migrations-env.sh
+```
+
+For a production-style env file:
+
+```
+./scripts/run-migrations-env-prod.sh
+```
+
+**Run the API**
+
+- With hot reload:
+
+```
+air
+```
+
+- Without hot reload:
+
+```
+go run cmd/api/main.go (it takes the .env file as default)
+```
+
+**Dockerize the API**
+
+Build and run the app container:
+
+```
+docker compose -f docker-compose.app.yml up --build
+```
+
+**Linting / formatting**
+
+This repo includes a `golangci-lint` configuration (`.golangci.yml`) and enables `gofmt`/`goimports`.
+
+- Install and run lint:
+
+```
+golangci-lint run
+```
 
 ## Template Tour
 
-Going from top to bottom, in the `/cmd` folder you'll see the entrypoint of the server. In its main.go you'll see the app loading the env and making a config struct which is based on the `/config` also present the root folder. This config will then be passed to the server, it's the only config and you probably don't need another one, just add to it if you want to pass more info to the server from env. The goroutine at the end of the function has the purpose of running a `OnShutdown` function when the server crashes or panics. You can add anything you want in the `OnShutdown` function, I left it empty but with some comments. In the goroutine we make a instance of our server struct which includes our whole server with the db, handlers and everything packed together. Also in `/server` you have a `Makefile` which builds the app properly in the same folder.
+### Entrypoints (`/cmd`)
 
-The `/internal` is where the actual code lies. The server creation is in the `server.go` (the `AppServer` struct that includes everything I said earlier). In the `Run` function of this struct we have all the server setup, adding the config info received from `/cmd`, the creation of the db, the router, middlewares and handlers, running the migrations and at the end we start everything up. The `Sender` and `Storage` fields on the struct are injected from `handlers.Handlers` thus the handlers will have access to them. The other 3 functions attached to the struct are `OnShutdown` that I mentioned earlier, `NotFoundHandler` and`NotAllowedHandler` that are 2 special handlers that handle the 404 and 405 status codes.
+- **`cmd/api/main.go`**: loads config, sets up signal handling, starts the server, and ensures shutdown cleanup runs.
+- **`cmd/migration/main.go`**: loads config, connects to Postgres, and runs migrations from `internal/migrations`.
 
-In `/errors` you have the standard for custom errors. You use this struct when you desire to respond to a request with some specific error info. This struct will be passed to the `Sender` which we'll see in a bit, and there the `Sender` will structure the response based on a specific standard. Below this there are the sentinels errors that you'll use throughout your app. The `Sender` accepts both a `string` as an error, an normal struct that implements the `error` interface and an `Err` struct that implements the `error` interface but has additional keys in the struct.
+### Server wiring (`internal/server.go`)
 
-In `/handlers` you have the `handlers.go` file which creates the handlers object and all the dependencies it needs, which then itself is injected into `AppServer` in `server.go` that I mentioned above. Now, the others `.go` files in this folder should be specific to each handler group you have. By default there's one for books in `books.go`, but if you need handlers for users, you create a `users.go`, for auth an `auth.go` and so on. All the functions there are received by the `Handlers` struct in `handlers.go`.
+This is where the application is composed:
 
-`/middlewares` implements custom middlewares that are added into `negroni` at the start of the server in `server.go`.
+- Creates the Postgres connection (`internal/libs/database`)
+- Optionally connects RabbitMQ and ensures topology (exchange + queues + bindings)
+- Constructs services (`internal/service`) and transports (`internal/transport/http`, `internal/transport/queue`)
+- Builds the `chi` router with middleware:
+  - `middleware.Logger`, `middleware.Recoverer`
+  - `cors.Handler` using `ALLOWED_ORIGINS`
+  - `secure.New(...).Handler` for security headers
+- Registers top-level routes under `/api`
+- Starts:
+  - the HTTP server
+  - queue consumers (only when `RABBITMQ_ENABLED=true`)
+- Handles graceful shutdown and closes DB/RabbitMQ connections
 
-In `/model` you first have the `base_model.go` which is the base for the other models. And in the same `/handlers` spirit, each file is responsible for its part of the app, so `books.go` will have the database model for books, the one that reflects the books table in db, and below it you have different structs that define how responses and requests for each endpoint should look like (since you don't always want to send the whole model struct as a response and also sending it with zero values is no good).
+### HTTP transport (`internal/transport/http`)
 
-In `/storage` there's the `storage.go` which defines how the storage should look like, thus being able to switch databases. The new database should implement the `StorageInterface` and it's good to go. `postgres_db.go` create a instance of this storage with a postgres db in the `Storage` struct as seen in `server.go` when we created the db. For a new db just create another `my_db.go` and create a `Storage` instance with that particular db. In the `Storage` struct you can add a `redis` db and so on if you want more dbs. Again in the same spirit, `books.go` implements the `StorageInterface` specifically for books, and all the methods are received by the `Storage` struct that is eventually used in handlers. For users you'll have `users.go` and there will be all the db operations specifically on users and so on.
+**Pattern**
 
-In `\pkg` you have the `httputils` and there's the `http_response.go` which creates the standard for responses. The `Sender` struct in injected in the handlers and will be used there whenever you send a response. I made this struct with the idea of automation and also with the idea of extension - by default there's the `JSON` response, but you can add below HTML format, XML or any other you need. `s.Render` has a bunch of them. The `JSON` function takes the `http.ResponseWrites`, the statusCode and the struct you want to send back to the user, and based on the format defined above in the file, sends the response.
-The `/loger` in pkg defines the logger for the app, you can use this logger to log to console or to the `/logs` file in the root folder, you can see in handlers how it is used. The logs directory path has been set to this root directory, but do not keep them here. Add your own path to a directory outside of the root project, like `/var/log/myapp` for Unix/Linux systems, where you can separate the concerns or create log rotation if needed.
+- Each domain gets its own folder under `internal/transport/http/<domain>/`
+- Each domain exposes a `RegisterRoutes(r chi.Router)` method
+- `internal/transport/http/http_transport.go` wires up domain handlers and injects:
+  - the relevant service(s)
+  - the `ResponseRenderer`
 
-Thus you have all the minimum functionality you always need to get started on an Api that can grow large with time.
+**Example: users**
 
-The other remaining files are self-explanatory.
+Routes are registered in `internal/transport/http/users/handler_routes.go`:
+
+- `GET /api/users/{id}` → `GetUser`
+- `POST /api/users/` → `CreateUser` (wrapped with `AuthMiddleware`)
+
+`AuthMiddleware` (`internal/transport/http/middlewares/auth.go`) is provided as a scaffold. It currently allows all requests; you can implement JWT validation and attach claims to context.
+
+### Response rendering (`internal/libs/renderer`)
+
+All handlers should respond via `ResponseRenderer.JSON(w, statusCode, payload)`.
+
+- If `payload` is an `*errors.HTTPError` (or wraps one), the renderer will respond using the embedded `StatusCode` and the standard error envelope.
+- If `payload` is any other `error`, the renderer returns a \(500\) internal error envelope.
+- If `statusCode` is \(2xx\), the renderer wraps the payload in the success envelope.
+
+This lets you keep handler logic simple while still enforcing consistent responses across the API.
+
+### Services (`internal/service`) and repositories (`internal/repositories`)
+
+**Repository layer**
+
+Repositories use `sqlx` directly. Example: `UserRepository` implements:
+
+- `GetUser(ctx, id)`
+- `CreateUser(ctx, user)`
+- `CheckIfUserEmailExists(ctx, email)`
+
+**Service layer**
+
+Services implement business logic and orchestration. Example: `UserService.CreateUser`:
+
+- checks uniqueness
+- hashes the password (`internal/libs/crypto`)
+- inserts the user
+- publishes a `users.created` event (when RabbitMQ is enabled)
+
+### Migrations (`internal/migrations`)
+
+Migrations are plain SQL and run via `golang-migrate`. The included migration creates:
+
+- `uuid-ossp` extension
+- `citext` extension
+- an `email` domain with a regex constraint
+- a `users` table
+
+Add new migrations by creating additional `*.up.sql` files in `internal/migrations` using the standard migrate versioned naming.
+
+### Queue transport (`internal/transport/queue`)
+
+When enabled, the template:
+
+- declares an exchange (`internal/libs/queue.EventsExchangeName`)
+- declares queues + bindings (`internal/libs/queue/topology.go`)
+- starts consumers in goroutines (`QueueTransport.StartConsumers`)
+- routes messages via `Router` (`routingKey -> handler`)
+
+**Example message**
+
+On user creation, the service publishes:
+
+- exchange: `go-api-template`
+- routing key: `users.created`
+- body: JSON (id, email, firstName, lastName)
+
+The consumer example handler lives in `internal/transport/queue/queue_handlers.go`.
+
+### Adding a new domain (recommended workflow)
+
+If you want to add a new resource like `orders`:
+
+- **Model**: add `internal/model/orders.go`
+- **Repository**: add `internal/repositories/order_repository.go`
+- **Service**: add `internal/service/orders.go` and wire it in `internal/service/types.go`
+- **HTTP handlers**: add `internal/transport/http/orders/` with:
+  - `handler.go`, `handler_routes.go`, `types.go`, `mapper.go`
+- **Transport wiring**:
+  - add it to `internal/transport/http/http_transport.go`
+  - register routes in `internal/server.go` under `/api`
+- **(Optional) Queue**:
+  - define routing keys/queue names in `internal/libs/queue/types.go`
+  - add queue specs/bindings in `internal/libs/queue/topology.go`
+  - register handlers in `internal/transport/queue/queue.go`
+
+Don’t forget to rename the module (`go.mod`) and imports from `go-api-template` to your own module path.
 
 Happy coding.
 

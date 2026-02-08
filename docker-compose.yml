@@ -1,34 +1,32 @@
-version: "3.9"
+name: go-api-template
 
 services:
-  api:
-    container_name: api
-    build: .
-    image: api:go
-    env_file:
-      - .env
+  db:
+    image: postgres:18
+    hostname: go-api-template-db
+    container_name: go-api-template-db
     environment:
-      DB_USER: ${DB_USER}
-      DB_NAME: ${DB_NAME}
-      DB_PASSWORD: ${DB_PASSWORD}
-      DB_HOST: ${DB_HOST}
-    ports:
-      - "8080:8080"
-    depends_on:
-      - postgres
-  postgres:
-    container_name: postgres
-    image: postgres:16-alpine
-    env_file:
-      - .env
-    environment:
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_DB: ${DB_NAME}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: root
+      POSTGRES_DB: go-api-template_db
     ports:
       - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - ./scripts/database-init.sh:/docker-entrypoint-initdb.d/database-init.sh
+      - go-api-template_postgres_data:/var/lib/postgresql
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    hostname: go-api-template-rabbitmq
+    container_name: go-api-template-rabbitmq
+    ports:
+      - "15672:15672"
+      - "5672:5672"
+    volumes:
+      - go-api-template_rabbitmq_data:/var/lib/rabbitmq
+    restart: unless-stopped
 
 volumes:
-  pgdata: {}
+  go-api-template_postgres_data:
+  go-api-template_rabbitmq_data:
