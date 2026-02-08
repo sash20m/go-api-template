@@ -34,13 +34,10 @@
     main.go
   /migration                 # Migration runner
     main.go
-
 /config                      # Config schema + env loading
   config.go
-
 /internal                    # Application code
   server.go                  # Server wiring (HTTP + Queue) and graceful shutdown
-
   /transport                 # Transport layer (HTTP, queue, etc.) through which external systems communicate with the API.
     /http
       http_transport.go      # Transport constructor (wires handlers)
@@ -50,38 +47,30 @@
       queue.go               # Consumer startup and routing keys -> handlers
       router.go              # Router: routingKey -> handler
       queue_handlers.go      # Message handlers (example: users.created)
-
   /service                   # Business logic layer (use-cases)
     users.go
     types.go                 # Service wiring + request structs
-
   /repositories              # Data access layer (sqlx)
     user_repository.go
-
   /model                     # Domain + DB models (sqlx tags)
     users.go
     model_kit.go
-
   /errors                    # Custom error type + error codes
     errors.go
     error_codes.go
     user_email_exists.go
-
   /libs                      # Shared infra helpers
     /crypto                  # Password hashing helpers
     /database                # Postgres connection + migrations runner
     /queue                   # RabbitMQ implementation + types + topology
     /renderer                # Response renderer (JSON envelopes)
     /utils                   # Generic helpers (JSON body parsing, parsing utils)
-
   /migrations                # SQL migrations (golang-migrate format)
     1_create_tables.up.sql
-
 /scripts                      # Helper scripts (migrations, DB init)
   run-migrations-env.sh
   run-migrations-env-prod.sh
   database-init.sh
-
 .air.toml                     # Air hot reload config
 .golangci.yml                 # golangci-lint configuration
 docker-compose.yml            # Postgres + RabbitMQ for local dev
